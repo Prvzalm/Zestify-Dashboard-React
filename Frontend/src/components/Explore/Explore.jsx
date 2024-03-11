@@ -72,29 +72,34 @@ const Explore = ({ chatMembers }) => {
 
       const membersByJoinDate = {};
 
-      membersInDateRange.forEach((member) => {
-        // Manual formatting to dd/mm/yyyy
-        const joinedDateObj = new Date(member.joinedAt);
-        const joinedDate = [
-          joinedDateObj.getDate().toString().padStart(2, '0'),
-          (joinedDateObj.getMonth() + 1).toString().padStart(2, '0'),
-          joinedDateObj.getFullYear(),
-        ].join('/');
-      
-        if (!membersByJoinDate[joinedDate]) {
-          membersByJoinDate[joinedDate] = { total: 0, joined: 0, left: 0 };
-        }
-        membersByJoinDate[joinedDate].total++;
-        if (!member.leftAt) {
+        membersInDateRange.forEach((member) => {
+          // Manual formatting to dd/mm/yyyy
+          const joinedDateObj = new Date(member.joinedAt);
+          const joinedDate = [
+            joinedDateObj.getDate().toString().padStart(2, '0'),
+            (joinedDateObj.getMonth() + 1).toString().padStart(2, '0'),
+            joinedDateObj.getFullYear(),
+          ].join('/');
+        
+          if (!membersByJoinDate[joinedDate]) {
+            membersByJoinDate[joinedDate] = { joined: 0, left: 0, total: 0 };
+          }
           membersByJoinDate[joinedDate].joined++;
-        } else {
-          membersByJoinDate[joinedDate].left++;
-        }
-      });    
-
-      const data = Object.entries(membersByJoinDate).map(([date, counts]) => ({
-        date, total: counts.total, joined: counts.joined, left: counts.left,
-      }));
+          if (member.leftAt) {
+            membersByJoinDate[joinedDate].left++;
+          }
+        });
+      
+        let totalMembers = 0;
+        const data = Object.entries(membersByJoinDate).map(([date, counts]) => {
+          totalMembers += counts.joined - counts.left;
+          return {
+            date,
+            total: totalMembers,
+            joined: counts.joined,
+            left: counts.left,
+          };
+        });
 
       return {
         channelName: channel.channelName,

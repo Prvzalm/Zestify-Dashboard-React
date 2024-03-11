@@ -1,10 +1,13 @@
 const mongoose = require('mongoose');
 
-const chatLinkMappingSchema = new mongoose.Schema({
-  userDefinedName: { type: String }, // Make it optional
-  chatLink: { type: String, required: true },
+const linkNameSchema = new mongoose.Schema({
+  sessionId: { type: String, required: true },
+  chatLinkName: [{
+    chatLink: {type: String, required: true},
+    name: {type: String}
+  }]
 });
 
-const ChatLinkMapping = mongoose.model('ChatLinkMapping', chatLinkMappingSchema);
+const LinkName = mongoose.model('LinkName', linkNameSchema);
 
-module.exports = ChatLinkMapping;
+module.exports = LinkName;

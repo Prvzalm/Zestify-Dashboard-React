@@ -11,6 +11,7 @@ import "react-date-range/dist/theme/default.css";
 import Button from "@mui/material/Button";
 import Popover from "@mui/material/Popover";
 import { BsCalendarDateFill } from "react-icons/bs";
+import { FaPenToSquare } from "react-icons/fa6";
 import { GoEye } from "react-icons/go";
 import { MdKeyboardArrowDown } from "react-icons/md";
 import { useNavigate } from "react-router-dom";
@@ -24,9 +25,13 @@ const Dashboard = ({ chatMembers }) => {
   const [notificationCount, setNotificationCount] = useState(5);
   const [linkDateRanges, setLinkDateRanges] = useState({});
 
+  const [editingLinkIndex, setEditingLinkIndex] = useState();
+
+  const [linkNames, setLinkNames] = useState([]);
+
   const [inputValues, setInputValues] = useState({});
 
-  const [open, setOpen] = useState(false); // Added open state
+  const [open, setOpen] = useState(false);
 
   const navigate = useNavigate();
 
@@ -80,36 +85,73 @@ const Dashboard = ({ chatMembers }) => {
       position: "bottom-left",
     });
 
-    const handleInputSubmit = async (e, linkId) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        const chatId = inputValues[linkId];
-    
-        try {
-          const response = await fetch("http://localhost:5000/api/chatMembers/requestId", {
+  const handleInputSubmit = async (e, linkId) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const chatId = inputValues[linkId];
+
+      try {
+        const response = await fetch(
+          "http://localhost:5000/api/chatMembers/requestId",
+          {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({ linkId, chatId }),
-          });
-          const data = await response.json();
-    
-          if (!response.ok) {
-            throw new Error(data.message);
           }
-    
-          handleSuccess(data.message || "Chat ID submitted successfully!");
-    
-          setInputValues((prevInputValues) => ({
-            ...prevInputValues,
-            [linkId]: "",
-          }));
-        } catch (error) {
-          handleError(error.message);
+        );
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message);
         }
+
+        handleSuccess(data.message || "Chat ID submitted successfully!");
+
+        setInputValues((prevInputValues) => ({
+          ...prevInputValues,
+          [linkId]: "",
+        }));
+      } catch (error) {
+        handleError(error.message);
       }
-    };
+    }
+  };
+
+  const handleEditLinkNameSubmit = async (chatLink, desiredName) => {
+    try {
+      const sessionId = sessionStorage.getItem("sessionId");
+      // Simple validation
+      if (!sessionId || !chatLink || !desiredName) return;
+  
+      const response = await fetch("http://localhost:5000/api/chatMembers/linknames", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ sessionId, chatLink, desiredName }),
+      });
+  
+      if (!response.ok) {
+        throw new Error("Failed to update link name");
+      }
+  
+      const data = await response.json();
+      setLinkNames((prev) => ({ ...prev, [data.chatLink]: desiredName }));
+    } catch (error) {
+      console.error("Failed to update link name", error);
+      toast.error("Failed to update link name. Please try again later.");
+    }
+  };  
+
+  const handleEditConfirm = (e, chatLink) => {
+    if (e.key === "Enter") {
+      const newLinkName = e.target.value;
+      handleEditLinkNameSubmit(chatLink, newLinkName); // Function to save the name
+      setEditingLinkIndex(-1); // Reset editing index
+    }
+  };
 
   useEffect(() => {
     setNotificationCount(hasNotification ? 5 : 0);
@@ -157,10 +199,48 @@ const Dashboard = ({ chatMembers }) => {
           linkDetails: Object.values(linkDetails),
         };
       })
-      .filter(Boolean);
+      .filter(Boolean)
+      .map((channel) => ({
+        ...channel,
+        linkDetails: channel.linkDetails.map((link) => ({
+          ...link,
+          chatLink: linkNames[link.chatLink] || link.chatLink,
+        })),
+      }));
 
     return channelsDetails;
   };
+
+  useEffect(() => {
+
+    const sessionId = sessionStorage.getItem("sessionId");
+    const fetchLinkNames = async () => {
+      try {
+        const response = await fetch(`http://localhost:5000/api/chatMembers/linknamesfetch?sessionId=${sessionId}`);
+    
+        if (!response.ok) {
+          throw new Error("Failed to fetch link names");
+        }
+    
+        const data = await response.json();
+        console.log(data);
+    
+        const linkNamesMap = data.reduce((acc, item) => {
+          acc[item.chatLink] = item.name;
+          return acc;
+        }, {});
+    
+        setLinkNames(linkNamesMap);
+      } catch (error) {
+        console.error(error);
+        toast.error("Failed to fetch link names. Please try again later.");
+      }
+    };
+    
+    if (sessionId) {
+      fetchLinkNames();
+    }
+  }, []);
 
   return (
     <div className="dashboard-container p-0 sm:ml-60">
@@ -205,7 +285,34 @@ const Dashboard = ({ chatMembers }) => {
                 <tbody>
                   {channel.linkDetails.map((link, linkIndex) => (
                     <tr key={linkIndex}>
-                      <td>{link.chatLink}</td>
+                      <td>
+                        {editingLinkIndex === linkIndex ? (
+                          <input
+                          type="text"
+                          defaultValue={linkNames[link.chatLink] || link.chatLink}
+                          onKeyDown={(e) => handleEditConfirm(e, link.chatLink, linkIndex)}
+                          autoFocus
+                          style={{ width: "auto" }}
+                        />                        
+                        ) : (
+                          <>
+                            {linkNames[link.chatLink] || link.chatLink}
+                            <button
+                              onClick={() => {
+                                setEditingLinkIndex(linkIndex);
+                              }}
+                              style={{
+                                marginLeft: "10px",
+                                border: "none",
+                                background: "none",
+                                cursor: "pointer",
+                              }}
+                            >
+                              <FaPenToSquare />
+                            </button>
+                          </>
+                        )}
+                      </td>
                       <td>
                         <div className="agency-inputs">
                           {notificationCount > 0 && Math.random() < 0.3 && (
@@ -270,7 +377,8 @@ const Dashboard = ({ chatMembers }) => {
                       <td>-{link.leftMemberCount}</td>
                       <td>
                         <div style={{ height: "2rem" }} className="mt-2">
-                          <Button className="date-button"
+                          <Button
+                            className="date-button"
                             onClick={(event) =>
                               handleClick(
                                 event,

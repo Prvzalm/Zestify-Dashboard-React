@@ -5,6 +5,7 @@ const router = express.Router();
 const ChatMember = require("../models/ChatMemberSchema");
 const Link = require("../models/LinkCostSchema");
 const Request = require("../models/RequestSchema");
+const LinkName = require("../models/LinkNameSchema")
 
 router.get("/", async (req, res) => {
   const { chatId } = req.query;
@@ -43,6 +44,59 @@ router.get("/", async (req, res) => {
   } catch (error) {
     console.error("Error fetching chat members:", error);
     res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.post('/linknames', async (req, res) => {
+  const { sessionId, chatLink, name } = req.body;
+
+  if (!sessionId || !chatLink) {
+    return res.status(400).json({ message: 'Missing required fields' });
+  }
+
+  try {
+    let session = await LinkName.findOne({ sessionId });
+
+    if (session) {
+      const linkIndex = session.chatLinkName.findIndex(link => link.chatLink === chatLink);
+
+      if (linkIndex > -1) {
+        session.chatLinkName[linkIndex].name = name;
+      } else {
+        session.chatLinkName.push({ chatLink, name });
+      }
+    } else {
+      session = new LinkName({
+        sessionId,
+        chatLinkName: [{ chatLink, name }]
+      });
+    }
+
+    await session.save();
+    res.status(200).json({ message: 'Link name saved successfully' });
+  } catch (error) {
+    console.error('Failed to save chat link name:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+router.get('/linknamesfetch', async (req, res) => {
+  const { sessionId } = req.query;
+
+  if (!sessionId) {
+      return res.status(400).json({ message: 'Session ID is required' });
+  }
+
+  try {
+      const sessionData = await LinkName.findOne({ sessionId });
+      if (sessionData) {
+          res.json(sessionData.chatLinkName);
+      } else {
+          res.status(404).json({ message: 'No link names found for this session' });
+      }
+  } catch (error) {
+      console.error('Failed to fetch link names:', error);
+      res.status(500).json({ message: 'Internal server error' });
   }
 });
 
